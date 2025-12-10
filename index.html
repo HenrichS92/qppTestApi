@@ -8,13 +8,11 @@
 </head>
 <body>
   <div class="container">
+    <button id="downloadApi" onclick="downloadFile()">Download API Spec</button>
     <h1>Clients Manager</h1>
     <div class="button-group">
       <button id="loadClientsBtn">Load Clients</button>
       <button id="addClientBtn">Add Client</button>
-    </div>
-    <div class="button-download">
-      <button id="downloadApi">Download API Spec</button>
     </div>
 
     <table id="clientsTable">
@@ -264,6 +262,12 @@
       document.getElementById("modalTitle").innerText = "Add Client";
       clientModal.style.display = "block";
     };
+     async function downloadFile() {
+      const link = document.createElement('a');
+      link.href = '/swagger.yml';   // Súbor je v rovnakom priečinku
+      link.download = 'swagger.yml';
+      link.click();
+    }
   </script>
 </body>
 </html>
