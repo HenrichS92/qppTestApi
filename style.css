@@ -25,6 +25,13 @@ h1 {
   margin-bottom: 15px;
 }
 
+.button-group {
+  text-align: center;
+  background-color: green;
+  color: white;
+  margin-bottom: 15px;
+}
+
 button {
   background: #0077cc;
   color: white;
