@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clients Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Clients Manager</h1>
+    <div class="button-group">
+      <button id="loadClientsBtn">Load Clients</button>
+      <button id="addClientBtn">Add Client</button>
+    </div>
+
+    <table id="clientsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Full Name</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Modal for Add/Edit Client -->
+  <div id="clientModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="modalTitle">Add Client</h2>
+      <form id="clientForm">
+        <input type="hidden" id="clientId" />
+        <label>Full Name:</label>
+        <input type="text" id="fullName" required />
+
+        <label>Gender:</label>
+        <select id="gender" required>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+
+        <label>Birth Date:</label>
+        <input type="date" id="birthDate" required />
+
+        <label>Country:</label>
+        <input type="text" id="country" required />
+
+        <label>Street:</label>
+        <input type="text" id="street" required />
+
+        <button type="submit" id="saveClientBtn">Save</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal for Client Details -->
+  <div id="detailModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Client Details</h2>
+      <div id="clientDetails"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "https://690b3bce6ad3beba00f40902.mockapi.io/testApi/clients";
+    const loadClientsBtn = document.getElementById("loadClientsBtn");
+    const addClientBtn = document.getElementById("addClientBtn");
+    const clientsTableBody = document.querySelector("#clientsTable tbody");
+    const clientModal = document.getElementById("clientModal");
+    const detailModal = document.getElementById("detailModal");
+    const closeBtns = document.querySelectorAll(".close");
+    const clientForm = document.getElementById("clientForm");
+    const clientIdInput = document.getElementById("clientId");
+
+    // Close modals
+    closeBtns.forEach(btn => btn.onclick = () => btn.closest(".modal").style.display = "none");
+    window.onclick = event => { if (event.target.classList.contains("modal")) event.target.style.display = "none"; };
+
+    function formatDate(dateString) {
+      const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const date = new Date(dateString);
+      return `${date.getDate()}. ${months[date.getMonth()]} ${date.getFullYear()}`;
+    }
+
+    async function loadClients() {
+      const res = await fetch(API_BASE);
+      const clients = await res.json();
+      clientsTableBody.innerHTML = "";
+      clients.forEach(client => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${client.id}</td>
+          <td>${client.fullName}</td>
+          <td>
+            <button class="view-btn" onclick="viewClient('${client.id}')">View</button>
+            <button class="accounts-btn" onclick="toggleAccountsRow('${client.id}', this)">Accounts</button>
+            <button class="edit-btn" onclick="editClient('${client.id}')">Edit</button>
+            <button class="delete-btn" onclick="deleteClient('${client.id}')">🗑️</button>
+          </td>
+        `;
+        clientsTableBody.appendChild(row);
+      });
+    }
+
+    async function viewClient(id) {
+      const res = await fetch(`${API_BASE}/${id}`);
+      const client = await res.json();
+      document.getElementById("clientDetails").innerHTML = `
+        <p><strong>Name:</strong> ${client.fullName}</p>
+        <p><strong>Gender:</strong> ${client.gender}</p>
+        <p><strong>Birth Date:</strong> ${formatDate(client.birthDate)}</p>
+        <p><strong>Country:</strong> ${client.country}</p>
+        <p><strong>Street:</strong> ${client.street}</p>
+      `;
+      detailModal.style.display = "block";
+    }
+
+    // Toggle accounts below client row
+    async function toggleAccountsRow(clientId, button) {
+      const row = button.closest("tr");
+      const nextRow = row.nextElementSibling;
+
+      if (nextRow && nextRow.classList.contains("accounts-row")) {
+        nextRow.remove();
+        button.textContent = "Accounts";
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/${clientId}/accounts`);
+      const accounts = await res.json();
+
+      const newRow = document.createElement("tr");
+      newRow.className = "accounts-row";
+
+      let html = "";
+
+      if (accounts.length === 0) {
+        html += `<div class="warning">⚠️ This client has no accounts.</div>`;
+      } else {
+        html += accounts.map(a => `
+          <div class="account-card-inline">
+            <img src="${a.avatar}" alt="Avatar" />
+            <div>
+              <p><strong>${a.accountId}</strong></p>
+              <p>Account #: ${a.accountNumber}</p>
+              <p>Amount: <strong>${a.amount}</strong></p>
+              <p>Status: ${a.status}</p>
+              <div class="account-actions">
+                <button onclick="viewAccount('${clientId}','${a.id}')">View</button>
+                <button onclick="editAccount('${clientId}','${a.id}')">Edit</button>
+                <button class="delete-btn-small" onclick="deleteAccount('${clientId}','${a.id}')">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      html += `
+        <div class="add-account-container">
+          <button class="add-account-btn" onclick="addAccount('${clientId}')">+ Add Account</button>
+        </div>
+      `;
+
+      newRow.innerHTML = `<td colspan="3">${html}</td>`;
+      row.insertAdjacentElement("afterend", newRow);
+      button.textContent = "Hide Accounts";
+    }
+
+    async function addAccount(clientId) {
+      const accountId = prompt("Enter Account Type (e.g. Investment Account):");
+      if (!accountId) return;
+      const data = {
+        accountId,
+        amount: (Math.random() * 1000).toFixed(2),
+        status: "active",
+        clientId,
+        avatar: "https://avatars.githubusercontent.com/u/1",
+        accountNumber: "AC" + Math.floor(Math.random() * 1e15)
+      };
+      await fetch(`${API_BASE}/${clientId}/accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      alert("Account added!");
+      loadClients();
+    }
+
+    async function viewAccount(clientId, accountId) {
+      const res = await fetch(`${API_BASE}/${clientId}/accounts/${accountId}`);
+      const a = await res.json();
+      alert(`Account: ${a.accountId}\nAmount: ${a.amount}\nStatus: ${a.status}`);
+    }
+
+    async function editAccount(clientId, accountId) {
+      const newAmount = prompt("Enter new amount:");
+      if (!newAmount) return;
+      await fetch(`${API_BASE}/${clientId}/accounts/${accountId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: newAmount })
+      });
+      alert("Account updated!");
+      loadClients();
+    }
+
+    async function deleteAccount(clientId, accountId) {
+      if (confirm("Are you sure you want to delete this account?")) {
+        await fetch(`${API_BASE}/${clientId}/accounts/${accountId}`, { method: "DELETE" });
+        alert("Account deleted!");
+        loadClients();
+      }
+    }
+
+    clientForm.onsubmit = async e => {
+      e.preventDefault();
+      const data = {
+        fullName: document.getElementById("fullName").value,
+        gender: document.getElementById("gender").value,
+        birthDate: document.getElementById("birthDate").value,
+        country: document.getElementById("country").value,
+        street: document.getElementById("street").value,
+      };
+      const id = clientIdInput.value;
+      const method = id ? "PUT" : "POST";
+      const url = id ? `${API_BASE}/${id}` : API_BASE;
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      alert(id ? "Client updated!" : "Client added!");
+      clientModal.style.display = "none";
+      loadClients();
+    };
+
+    async function editClient(id) {
+      const res = await fetch(`${API_BASE}/${id}`);
+      const client = await res.json();
+      clientIdInput.value = client.id;
+      document.getElementById("fullName").value = client.fullName;
+      document.getElementById("gender").value = client.gender;
+      document.getElementById("birthDate").value = client.birthDate.split("T")[0];
+      document.getElementById("country").value = client.country;
+      document.getElementById("street").value = client.street;
+      document.getElementById("modalTitle").innerText = "Edit Client";
+      clientModal.style.display = "block";
+    }
+
+    async function deleteClient(id) {
+      if (confirm("Are you sure you want to delete this client?")) {
+        await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
+        loadClients();
+      }
+    }
+
+    loadClientsBtn.onclick = loadClients;
+    addClientBtn.onclick = () => {
+      clientForm.reset();
+      clientIdInput.value = "";
+      document.getElementById("modalTitle").innerText = "Add Client";
+      clientModal.style.display = "block";
+    };
+  </script>
+</body>
+</html>
